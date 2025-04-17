@@ -1,0 +1,24 @@
+#!/bin/bash
+
+printf "%-6s %-20s %6s %6s %10s\n" "PID" "COMMAND" "%CPU" "%MEM" "SWAP(kB)"
+
+# Loop over all numeric PIDs
+for pid in $(ls /proc | grep -E '^[0-9]+$'); do
+  # Make sure the process still exists and is readable
+  if [ -r /proc/$pid/status ] && [ -r /proc/$pid/stat ]; then
+    # Get command name
+    cmd=$(awk '/^Name:/ {print $2}' /proc/$pid/status)
+
+    # Get swap usage
+    swap=$(awk '/^VmSwap:/ {print $2}' /proc/$pid/status)
+    swap=${swap:-0}  # Default to 0 if no swap info
+
+    # Get CPU and MEM usage using ps
+    read pcpu pmem <<< $(ps -p $pid -o %cpu,%mem --no-headers 2>/dev/null)
+
+    # Only show if CPU, MEM, or SWAP is non-zero
+    if [[ "$pcpu" != "" && ( $(echo "$pcpu > 0" | bc) -eq 1 || $(echo "$pmem > 0" | bc) -eq 1 || "$swap" -gt 0 ) ]]; then
+      printf "%-6s %-20s %6s %6s %10s\n" "$pid" "$cmd" "$pcpu" "$pmem" "$swap"
+    fi
+  fi
+done | sort -k3 -nr | head -n 15
